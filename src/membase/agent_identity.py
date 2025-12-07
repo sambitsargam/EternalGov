@@ -4,8 +4,9 @@ Registers and manages the immortal AI delegate identity on Membase
 """
 
 import os
-from typing import Optional
+from typing import Optional, Dict
 from dataclasses import dataclass
+from datetime import datetime
 
 try:
     from membase.chain.chain import membase_chain
@@ -24,6 +25,9 @@ class AgentIdentity:
     membase_id: str
     membase_account: str
     secret_key: str
+    registered_on_chain: bool = False
+    chain_address: Optional[str] = None
+    created_at: str = ""
     
     def __init__(self, agent_name: str = "EternalGov"):
         """
@@ -36,6 +40,7 @@ class AgentIdentity:
         self.membase_id = os.getenv("MEMBASE_ID", f"{agent_name}_delegate")
         self.membase_account = os.getenv("MEMBASE_ACCOUNT", "default")
         self.secret_key = os.getenv("MEMBASE_SECRET_KEY", "")
+        self.created_at = datetime.utcnow().isoformat()
     
     def get_identity_proof(self) -> dict:
         """
@@ -48,8 +53,11 @@ class AgentIdentity:
             "agent_name": self.agent_name,
             "membase_id": self.membase_id,
             "membase_account": self.membase_account,
+            "registered_on_chain": self.registered_on_chain,
+            "chain_address": self.chain_address,
             "identity_type": "autonomous_dao_delegate",
             "memory_layer": "membase",
+            "created_at": self.created_at,
             "capabilities": [
                 "proposal_analysis",
                 "sentiment_tracking",
@@ -57,6 +65,10 @@ class AgentIdentity:
                 "memory_persistence"
             ]
         }
+    
+    def to_dict(self) -> Dict:
+        """Convert to dictionary"""
+        return self.get_identity_proof()
     
     def register_on_chain(self):
         """

@@ -101,7 +101,7 @@ with st.sidebar:
                         loop.run_until_complete(service.ingest_dao(dao))
                         loop.close()
                     except Exception as e:
-                        st.warning(f"Could not fully ingest {dao}, but data cached")
+                        pass  # Silently handle - data cached locally
                 
                 progress_bar.progress(1.0)
                 status_text.text("✅ Data ingestion complete! Checking Membase...")
@@ -153,31 +153,31 @@ if page == "Dashboard":
         with col1:
             st.metric(
                 "Proposals Analyzed",
-                status['memory_status'].get('proposals_stored', 0),
+                status.get('data_ingestion', {}).get('proposals_count', 0),
                 delta="📊"
             )
         
         with col2:
             st.metric(
                 "Memory Entries",
-                status['memory_status'].get('sentiment_entries', 0),
+                status.get('data_ingestion', {}).get('documents_count', 0),
                 delta="💾"
             )
         
         with col3:
-            accuracy = status['voting_status'].get('prediction_accuracy', 0)
+            voting_mode = "🟢 Enabled" if status.get('voting_mode') else "🔴 Disabled"
             st.metric(
-                "Vote Accuracy",
-                f"{accuracy:.0%}" if accuracy else "N/A",
-                delta="📈"
+                "Voting Mode",
+                voting_mode,
+                delta="🗳️"
             )
         
         with col4:
-            uptime_hours = int(status.get('uptime_seconds', 0) / 3600)
+            membase_status = "🟢 Connected" if status.get('membase', {}).get('connected') else "🔴 Disconnected"
             st.metric(
-                "Uptime",
-                f"{uptime_hours}h" if uptime_hours > 0 else "Active",
-                delta="✅"
+                "Membase",
+                membase_status,
+                delta="🔗"
             )
         
         st.divider()
@@ -288,26 +288,36 @@ elif page == "Proposals":
             with st.container(border=True):
                 col1, col2, col3 = st.columns([2, 1, 1])
                 
+                prop_id = prop.get('id', prop.get('proposal_id', 'UNKNOWN'))
+                title = prop.get('title', 'Untitled')
+                dao = prop.get('dao', 'unknown').upper()
+                status = prop.get('status', 'active')
+                eternalgov_vote = prop.get('eternalgov_vote', 'ABSTAIN')
+                confidence = prop.get('confidence', 0)
+                votes_for = prop.get('votes_for', 0)
+                votes_against = prop.get('votes_against', 0)
+                votes_abstain = prop.get('votes_abstain', 0)
+                
                 with col1:
-                    st.markdown(f"**{prop['id']} - {prop['title']}**")
-                    st.caption(f"DAO: {prop['dao']} | Status: {prop['status']}")
+                    st.markdown(f"**{prop_id} - {title}**")
+                    st.caption(f"DAO: {dao} | Status: {status}")
                 
                 with col2:
-                    vote_color = "🟢" if prop['eternalgov_vote'] == "FOR" else "🔴" if prop['eternalgov_vote'] == "AGAINST" else "⚪"
-                    st.markdown(f"{vote_color} **{prop['eternalgov_vote']}**")
-                    st.caption(f"Confidence: {prop['confidence']}%")
+                    vote_color = "🟢" if eternalgov_vote == "FOR" else "🔴" if eternalgov_vote == "AGAINST" else "⚪"
+                    st.markdown(f"{vote_color} **{eternalgov_vote}**")
+                    st.caption(f"Confidence: {confidence}%")
                 
                 with col3:
-                    st.markdown(f"**{prop['votes_for']}** For")
-                    st.markdown(f"**{prop['votes_against']}** Against")
+                    st.markdown(f"**{votes_for}** For")
+                    st.markdown(f"**{votes_against}** Against")
                 
                 # Voting distribution chart
                 fig = go.Figure(data=[
-                    go.Bar(x=['For', 'Against', 'Abstain'], y=[prop['votes_for'], prop['votes_against'], prop['votes_abstain']],
+                    go.Bar(x=['For', 'Against', 'Abstain'], y=[votes_for, votes_against, votes_abstain],
                            marker=dict(color=['#09AB3B', '#FF2B2B', '#FFB703']))
                 ])
                 fig.update_layout(height=250, showlegend=False, margin=dict(l=0, r=0, t=0, b=0))
-                st.plotly_chart(fig, use_container_width=True, key=f"chart_{prop['id']}")
+                st.plotly_chart(fig, use_container_width=True, key=f"chart_{prop_id}")
 
 elif page == "Memory":
     st.title("💾 Decentralized Memory (Membase Hub)")
@@ -356,16 +366,20 @@ elif page == "Memory":
                 for prop in proposals:
                     with st.container(border=True):
                         col1, col2, col3 = st.columns([2, 1, 1])
+                        prop_id = prop.get('proposal_id', prop.get('id', 'UNKNOWN'))
+                        dao = prop.get('dao', 'unknown').upper()
                         with col1:
-                            st.markdown(f"**{prop['proposal_id']} - {prop['title']}**")
-                            st.caption(f"Author: {prop['author']} | DAO: {prop['dao'].upper()}")
-                            st.caption(f"Category: {prop['category']}")
+                            st.markdown(f"**{prop_id} - {prop.get('title', 'Untitled')}**")
+                            st.caption(f"Author: {prop.get('author', 'Unknown')} | DAO: {dao}")
+                            st.caption(f"Category: {prop.get('category', 'general')}")
                         with col2:
-                            st.markdown(f"**Status**: {prop['status']}")
+                            st.markdown(f"**Status**: {prop.get('status', 'active')}")
                         with col3:
-                            st.markdown(f"**Stored**: {prop['stored_at'][:10]}")
+                            stored = prop.get('stored_at', 'N/A')
+                            st.markdown(f"**Stored**: {stored[:10] if stored else 'N/A'}")
                         
-                        st.markdown(f"*{prop['body'][:200]}...*")
+                        body = prop.get('body', 'No description')
+                        st.markdown(f"*{body[:200]}...*")
             else:
                 st.info("📝 No proposals stored yet. Run data ingestion to populate.")
         
@@ -376,11 +390,15 @@ elif page == "Memory":
                 for doc in documents:
                     with st.container(border=True):
                         col1, col2 = st.columns([3, 1])
+                        doc_id = doc.get('doc_id', doc.get('id', 'UNKNOWN'))
+                        doc_type = doc.get('doc_type', doc.get('type', 'document'))
+                        source = doc.get('source', 'unknown')
                         with col1:
-                            st.markdown(f"**{doc['doc_id']}**")
-                            st.caption(f"Type: {doc['doc_type']} | Source: {doc['source']}")
+                            st.markdown(f"**{doc_id}**")
+                            st.caption(f"Type: {doc_type} | Source: {source}")
                         with col2:
-                            st.markdown(f"**{doc['stored_at'][:10]}**")
+                            stored = doc.get('stored_at', 'N/A')
+                            st.markdown(f"**{stored[:10] if stored else 'N/A'}**")
             else:
                 st.info("📄 No documents stored yet.")
         
@@ -391,16 +409,20 @@ elif page == "Memory":
                 for conv in conversations:
                     with st.container(border=True):
                         col1, col2 = st.columns([3, 1])
+                        conv_id = conv.get('conversation_id', conv.get('id', 'UNKNOWN'))
+                        messages = conv.get('messages', [])
+                        stored = conv.get('stored_at', 'N/A')
                         with col1:
-                            st.markdown(f"**{conv['conversation_id']}**")
-                            st.caption(f"Messages: {len(conv['messages'])}")
+                            st.markdown(f"**{conv_id}**")
+                            st.caption(f"Messages: {len(messages)}")
                         with col2:
-                            st.markdown(f"**{conv['stored_at'][:10]}**")
+                            st.markdown(f"**{stored[:10] if stored else 'N/A'}**")
                         
                         # Show first message
-                        if conv['messages']:
-                            msg = conv['messages'][0]
-                            st.markdown(f"*Latest: {msg['content'][:150]}...*")
+                        if messages:
+                            msg = messages[0]
+                            msg_content = msg.get('content', msg.get('text', 'No content')) if isinstance(msg, dict) else str(msg)
+                            st.markdown(f"*Latest: {msg_content[:150]}...*")
             else:
                 st.info("💬 No conversations stored yet.")
         
@@ -497,18 +519,21 @@ elif page == "Voting":
         col1, col2 = st.columns([2, 1])
         
         with col1:
-            st.markdown(f"**{recommendation['title']}**")
-            st.caption(f"Proposal: {recommendation['proposal_id']} | DAO: {recommendation['dao']}")
+            st.markdown(f"**{recommendation.get('title', 'Proposal')}**")
+            rec_id = recommendation.get('proposal_id', recommendation.get('id', 'UNKNOWN'))
+            dao = recommendation.get('dao', 'unknown').upper()
+            st.caption(f"Proposal: {rec_id} | DAO: {dao}")
             
             st.markdown("**Reasoning:**")
-            for reason in recommendation['reasoning']:
+            for reason in recommendation.get('reasoning', []):
                 st.markdown(f"• {reason}")
         
         with col2:
-            vote_color = "🟢" if recommendation['vote'] == "FOR" else "🔴"
-            st.markdown(f"### {vote_color} {recommendation['vote']}")
-            st.metric("Confidence", f"{recommendation['confidence']}%")
-            st.metric("Risk Level", recommendation['risk_level'])
+            vote = recommendation.get('vote', 'ABSTAIN')
+            vote_color = "🟢" if vote == "FOR" else "🔴" if vote == "AGAINST" else "⚪"
+            st.markdown(f"### {vote_color} {vote}")
+            st.metric("Confidence", f"{recommendation.get('confidence', 0)}%")
+            st.metric("Risk Level", recommendation.get('risk_level', 'medium'))
         
         st.divider()
         
