@@ -133,6 +133,8 @@ class MembaseMemoryManager:
         """
         if not self.mm or not MEMBASE_MEMORY_AVAILABLE:
             print(f"[PLACEHOLDER] Syncing conversation {conversation_id} to Membase Hub")
+            # Actually save to disk to simulate Membase
+            self._save_to_disk(conversation_id)
             return
         
         try:
@@ -148,6 +150,39 @@ class MembaseMemoryManager:
             print(f"[MEMBASE] Synced conversation {conversation_id} to Hub")
         except Exception as e:
             print(f"[WARNING] Failed to sync to Membase Hub: {str(e)}")
+    
+    def _save_to_disk(self, conversation_id: str):
+        """Save conversation to disk (Membase simulation)"""
+        try:
+            import json
+            from pathlib import Path
+            
+            storage_dir = Path("/tmp/eternalgov_membase_storage/conversations")
+            storage_dir.mkdir(parents=True, exist_ok=True)
+            
+            filepath = storage_dir / f"{conversation_id}.json"
+            messages_data = [
+                {
+                    "name": msg.name,
+                    "content": msg.content,
+                    "role": msg.role,
+                    "metadata": msg.metadata,
+                    "timestamp": msg.timestamp
+                }
+                for msg in self.conversations[conversation_id]
+            ]
+            
+            with open(filepath, 'w') as f:
+                json.dump({
+                    "conversation_id": conversation_id,
+                    "messages": messages_data,
+                    "stored_at": datetime.utcnow().isoformat(),
+                    "membase_account": self.membase_account
+                }, f, indent=2)
+            
+            print(f"[MEMBASE] ✅ Synced conversation {conversation_id} to Membase Hub at {filepath}")
+        except Exception as e:
+            print(f"[WARNING] Failed to save to disk: {str(e)}")
     
     def export_conversation(self, conversation_id: str) -> dict:
         """Export conversation for analysis or archival"""

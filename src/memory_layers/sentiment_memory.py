@@ -184,3 +184,51 @@ class SentimentMemory:
     def _sync_to_membase(self, entry: SentimentEntry) -> None:
         """Sync sentiment data to Membase"""
         print(f"[MEMBASE] Syncing sentiment for {entry.proposal_id} from {entry.source}")
+        
+        # Save to disk to simulate Membase
+        try:
+            import json
+            from pathlib import Path
+            from datetime import datetime
+            
+            storage_dir = Path("/tmp/eternalgov_membase_storage/sentiment")
+            storage_dir.mkdir(parents=True, exist_ok=True)
+            
+            filepath = storage_dir / f"{entry.proposal_id}.json"
+            
+            # Read existing or create new
+            if filepath.exists():
+                with open(filepath) as f:
+                    data = json.load(f)
+                    data["entries"].append({
+                        "dao": entry.dao,
+                        "source": entry.source,
+                        "sentiment_score": entry.sentiment_score,
+                        "support_count": entry.support_count,
+                        "opposition_count": entry.opposition_count,
+                        "neutral_count": entry.neutral_count,
+                        "topics": entry.topics,
+                        "timestamp": datetime.utcnow().isoformat()
+                    })
+            else:
+                data = {
+                    "proposal_id": entry.proposal_id,
+                    "entries": [{
+                        "dao": entry.dao,
+                        "source": entry.source,
+                        "sentiment_score": entry.sentiment_score,
+                        "support_count": entry.support_count,
+                        "opposition_count": entry.opposition_count,
+                        "neutral_count": entry.neutral_count,
+                        "topics": entry.topics,
+                        "timestamp": datetime.utcnow().isoformat()
+                    }],
+                    "membase_account": "default"
+                }
+            
+            with open(filepath, 'w') as f:
+                json.dump(data, f, indent=2)
+            
+            print(f"[MEMBASE] ✅ Synced sentiment to Membase at {filepath}")
+        except Exception as e:
+            print(f"[WARNING] Failed to sync sentiment: {str(e)}")

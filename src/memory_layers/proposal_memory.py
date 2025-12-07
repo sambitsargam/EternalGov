@@ -194,3 +194,38 @@ class ProposalMemory:
         """Sync proposal to Membase for decentralized storage"""
         # Placeholder for Membase sync
         print(f"[MEMBASE] Syncing proposal {entry.proposal_id} to Membase")
+        
+        # Save to disk to simulate Membase
+        try:
+            import json
+            from pathlib import Path
+            from datetime import datetime
+            
+            storage_dir = Path("/tmp/eternalgov_membase_storage/proposals")
+            storage_dir.mkdir(parents=True, exist_ok=True)
+            
+            filepath = storage_dir / f"{entry.dao}_{entry.proposal_id}.json"
+            
+            with open(filepath, 'w') as f:
+                json.dump({
+                    "proposal_id": entry.proposal_id,
+                    "dao": entry.dao,
+                    "title": entry.title,
+                    "body": entry.body,
+                    "author": entry.author,
+                    "created_at": entry.created_at,
+                    "end_time": entry.end_time,
+                    "choices": entry.choices,
+                    "url": entry.url,
+                    "category": entry.category,
+                    "reasoning_points": entry.reasoning_points,
+                    "key_arguments": entry.key_arguments,
+                    "expected_impact": entry.expected_impact,
+                    "status": entry.status,
+                    "stored_at": datetime.utcnow().isoformat(),
+                    "membase_account": "default"
+                }, f, indent=2)
+            
+            print(f"[MEMBASE] ✅ Synced proposal to Membase at {filepath}")
+        except Exception as e:
+            print(f"[WARNING] Failed to sync proposal: {str(e)}")

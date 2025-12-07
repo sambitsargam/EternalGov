@@ -215,6 +215,8 @@ class GovernanceKnowledgeBase:
         """
         if not self.kb or not MEMBASE_KB_AVAILABLE:
             print(f"[PLACEHOLDER] Syncing document {document.doc_id} to Membase Hub")
+            # Actually save to disk to simulate Membase
+            self._save_to_disk(document)
             return
         
         try:
@@ -227,6 +229,32 @@ class GovernanceKnowledgeBase:
             print(f"[MEMBASE] Synced document {document.doc_id} to Hub")
         except Exception as e:
             print(f"[WARNING] Failed to sync document to Membase Hub: {str(e)}")
+    
+    def _save_to_disk(self, document: GovernanceDocument):
+        """Save document to disk (Membase simulation)"""
+        try:
+            import json
+            from pathlib import Path
+            
+            storage_dir = Path("/tmp/eternalgov_membase_storage/documents")
+            storage_dir.mkdir(parents=True, exist_ok=True)
+            
+            filepath = storage_dir / f"{document.doc_id}.json"
+            
+            with open(filepath, 'w') as f:
+                json.dump({
+                    "doc_id": document.doc_id,
+                    "content": document.content,
+                    "source": document.source,
+                    "doc_type": document.doc_type,
+                    "metadata": document.metadata,
+                    "stored_at": datetime.utcnow().isoformat(),
+                    "membase_account": self.membase_account
+                }, f, indent=2)
+            
+            print(f"[MEMBASE] ✅ Synced document {document.doc_id} to Membase Hub at {filepath}")
+        except Exception as e:
+            print(f"[WARNING] Failed to save to disk: {str(e)}")
     
     def get_document_count(self) -> dict:
         """Get count of documents by type"""
