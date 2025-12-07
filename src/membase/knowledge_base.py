@@ -7,6 +7,13 @@ from typing import List, Optional, Dict
 from dataclasses import dataclass, field
 from datetime import datetime
 
+try:
+    from membase.knowledge.chroma import ChromaKnowledgeBase
+    from membase.knowledge.document import Document
+    MEMBASE_KB_AVAILABLE = True
+except ImportError:
+    MEMBASE_KB_AVAILABLE = False
+
 
 @dataclass
 class GovernanceDocument:
@@ -45,13 +52,20 @@ class GovernanceKnowledgeBase:
         self.auto_upload = auto_upload
         self.documents: Dict[str, GovernanceDocument] = {}
         
-        # In production: 
-        # from membase.knowledge.chroma import ChromaKnowledgeBase
-        # self.kb = ChromaKnowledgeBase(
-        #     persist_directory=persist_directory,
-        #     membase_account=membase_account,
-        #     auto_upload_to_hub=auto_upload
-        # )
+        # Initialize real Membase knowledge base if available
+        if MEMBASE_KB_AVAILABLE:
+            try:
+                self.kb = ChromaKnowledgeBase(
+                    persist_directory=persist_directory,
+                    membase_account=membase_account,
+                    auto_upload_to_hub=auto_upload
+                )
+                print(f"[MEMBASE] ChromaKnowledgeBase initialized for {membase_account}")
+            except Exception as e:
+                print(f"[WARNING] Could not initialize Membase ChromaKnowledgeBase: {str(e)}")
+                self.kb = None
+        else:
+            self.kb = None
     
     def add_document(
         self,
@@ -198,16 +212,21 @@ class GovernanceKnowledgeBase:
     def _sync_to_hub(self, document: GovernanceDocument) -> None:
         """
         Sync document to Membase Hub
-        In production: kb.add_documents(document)
         """
-        # Placeholder for hub sync
-        # from membase.knowledge.document import Document
-        # doc = Document(
-        #     content=document.content,
-        #     metadata=document.metadata
-        # )
-        # self.kb.add_documents(doc)
-        pass
+        if not self.kb or not MEMBASE_KB_AVAILABLE:
+            print(f"[PLACEHOLDER] Syncing document {document.doc_id} to Membase Hub")
+            return
+        
+        try:
+            # Real Membase sync
+            doc = Document(
+                content=document.content,
+                metadata=document.metadata
+            )
+            self.kb.add_documents(doc)
+            print(f"[MEMBASE] Synced document {document.doc_id} to Hub")
+        except Exception as e:
+            print(f"[WARNING] Failed to sync document to Membase Hub: {str(e)}")
     
     def get_document_count(self) -> dict:
         """Get count of documents by type"""

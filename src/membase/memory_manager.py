@@ -130,14 +130,24 @@ class MembaseMemoryManager:
     def _sync_to_hub(self, conversation_id: str) -> None:
         """
         Sync conversation to Membase Hub for decentralized storage
-        In production: MultiMemory(membase_account=..., auto_upload_to_hub=True)
         """
-        # Placeholder for Membase Hub sync
-        # from membase.memory.multi_memory import MultiMemory
-        # mm = MultiMemory(membase_account=self.membase_account, auto_upload_to_hub=True)
-        # for msg in self.conversations[conversation_id]:
-        #     mm.add(msg, conversation_id)
-        pass
+        if not self.mm or not MEMBASE_MEMORY_AVAILABLE:
+            print(f"[PLACEHOLDER] Syncing conversation {conversation_id} to Membase Hub")
+            return
+        
+        try:
+            # Real Membase sync
+            for msg in self.conversations[conversation_id]:
+                membase_msg = Message(
+                    name=msg.name,
+                    content=msg.content,
+                    role=msg.role,
+                    metadata=msg.metadata
+                )
+                self.mm.add(membase_msg, conversation_id)
+            print(f"[MEMBASE] Synced conversation {conversation_id} to Hub")
+        except Exception as e:
+            print(f"[WARNING] Failed to sync to Membase Hub: {str(e)}")
     
     def export_conversation(self, conversation_id: str) -> dict:
         """Export conversation for analysis or archival"""
